@@ -1,0 +1,268 @@
+---
+title: "Titanic Dataset"
+author: "Raj Waje"
+date: "23/04/2020"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+**About Dataset: **
+On April 15, 1912, during her maiden voyage, the Titanic sank after colliding with an iceberg, killing 1502 out of 2224 passengers and crew. This tragedy shocked the international community and lead to better safety regulations for ships. 
+One of the reasons that the shipwreck lead to such loss of life was that there were not enough lifeboats for the passengers and crew. Although there was some element of luck involved in surviving the sinking, some groups of people were more likely to survive than others, such as women, children, and the upper-class. 
+
+**Description of variables in the dataset: **
+
+VARIABLE DESCRIPTIONS:
+survival   :  Survival(0 = No; 1 = Yes)
+pclass     :  Passenger Class(1 = 1st; 2 = 2nd; 3 = 3rd)
+name       :  Name
+sex        :  Sex
+age        :  Age
+sibsp      :  Number of Siblings/Spouses Aboard
+parch      :  Number of Parents/Children Aboard
+ticket     :  Ticket Number
+fare       :  Passenger Fare
+cabin      :  Cabin
+embarked   :  Port of Embarkation (C = Cherbourg; Q = Queenstown; S = Southampton)
+
+
+**Reading dataset from excel file ,Importing library(readxl) inorder to read excel files**
+```{r}
+library(readxl)
+Titanic_data<-read_excel("D:/R_CSV_folder/Semester_2_evaluation/Titanic.xls")
+```
+
+**Viewing our dataset if it is imported properly**
+```{r}
+head(Titanic_data)
+```
+
+**Looking at the structure of the data**
+```{r}
+str(Titanic_data)
+```
+
+**Dimension of the datasett**
+```{r}
+dim(Titanic_data)
+```
+
+**Removing columns which not useful to predict the survived class**
+```{r}
+Titanic_data$PassengerId<-NULL
+Titanic_data$Name<-NULL
+Titanic_data$Cabin<-NULL
+Titanic_data$Ticket<-NULL
+```
+
+**Converting Sex column to factor as it is in characrer.**
+```{r}
+Titanic_data$Sex<-as.factor(Titanic_data$Sex)
+str(Titanic_data)
+colSums(is.na(Titanic_data))
+```
+
+
+**Replacing "NA" values in Age column with median value of age as we know that usually age variable is normally distributed variable**
+```{r}
+median(Titanic_data$Age,na.rm = T)
+```
+
+**Median value is 28 from above result**
+```{r}
+Titanic_data$Age[is.na(Titanic_data$Age)]<-28
+```
+
+**Converting continuous variable to categorical**
+```{r}
+Titanic_data$Age<-cut(Titanic_data$Age,breaks = c(0,20,28,40,Inf),labels = c("c1","c2","c3","c4"))
+str(Titanic_data)
+summary(Titanic_data)
+```
+
+
+
+**we need to convert numerical and characrter variables to factor**
+```{r}
+names<-c("Survived","Pclass","Embarked")
+Titanic_data[,names]<-lapply(Titanic_data[,names],as.factor)
+str(Titanic_data)
+head(Titanic_data)
+```
+
+**Replacing NA values present in the Embarked column with mode of Embarked col.**
+```{r}
+summary(Titanic_data$Embarked)
+```
+ 
+**Replacing NA values with "S"**
+```{r}
+Titanic_data$Embarked[is.na(Titanic_data$Embarked)]<-"S"
+summary(Titanic_data$Embarked)
+```
+
+**Checking if there are any NA values**
+```{r}
+colSums(is.na(Titanic_data))
+```
+
+**Scaling numeric data **
+```{r}
+names1<-c("Parch", "SibSp", "Fare")
+Titanic_data[,names1]<-lapply(Titanic_data[,names1], scale)
+summary(Titanic_data)
+```
+
+**using set.seed to get same results**
+```{r}
+set.seed(100)
+```
+
+**importing caret library for spliting the dataset into training and testing**
+**Dividing dataset into 70:30 ratio (70:training)**
+```{r}
+library(caret)
+index<-createDataPartition(Titanic_data$Survived,p=0.70,list = F)
+training_set<-Titanic_data[index,]
+testing_set<-Titanic_data[-index,]
+dim(training_set)
+dim(testing_set)
+```
+
+
+####Applying logistic regression Model
+```{r}
+titanic_model<-glm(Survived~.,data = training_set,family = "binomial")
+summary(titanic_model)
+```
+
+**From above model we can say that Columns "Parch" and "Fare" are insignificant variables as they have quite high p-values**
+```{r}
+training_set$Parch<-NULL
+training_set$Fare<-NULL
+testing_set$Parch<-NULL
+testing_set$Fare<-NULL
+```
+
+**Running model again as we have now removed both "Parch" & "Fare" variables**
+```{r}
+titanic_model<-glm(Survived~.,data = training_set,family = "binomial")
+summary(titanic_model)
+```
+
+**Fitting logistic model on training set**
+```{r}
+training_set$predicted_prob<-fitted(titanic_model)
+head(training_set)
+```
+
+
+**Creating and AUC-ROC curve as bydefault threshold is 0.5(probability),So to find best threshold value we use AUC ROC curve, which will not only tell us about accuracy but will also tell us about sensitivity and apecificity**
+```{r}
+library(ROCR)
+pred<-prediction(training_set$predicted_prob,training_set$Survived)
+perf<-performance(pred,"tpr","fpr")
+plot(perf,colorize=T,print.cutoffs.at=seq(0.1,by=0.05))
+```
+
+
+
+**selecting 0.45 threshold as it is giving ggod accuracy and also ratio of sensitivity and specificity are close**
+```{r}
+training_set$predicted_survived<-ifelse(training_set$predicted_prob<0.45,0,1)
+head(training_set)
+```
+
+
+**creeating confusion matrix **
+**Converting "training_set$predicted_survived" to factor as confusion matrix needs both to be factor**
+```{r}
+library(caret)
+training_set$predicted_survived <- as.factor(training_set$predicted_survived)
+confusionMatrix(training_set$predicted_survived,training_set$Survived)
+```
+
+**Predicting the people survived on test data**
+```{r}
+testing_set$predicted_prob<-predict(titanic_model,testing_set,type = "response")
+testing_set$predicted_survived<-ifelse(testing_set$predicted_prob<0.45,0,1)
+table(testing_set$Survived,testing_set$predicted_survived)
+testing_set$predicted_survived<-as.factor(testing_set$predicted_survived)
+confusionMatrix(testing_set$predicted_survived,testing_set$Survived)
+```
+
+
+**Preparing data for Random Forest**
+**We can use above training set but we will remove columns "Predicted prob" and "predicted_survived"**
+```{r}
+training_set<-training_set[,1:6]
+testing_set<-testing_set[,1:6]
+```
+
+####Applying Naive Bayes model
+```{r}
+library(e1071)
+model_naive_bayes <-naiveBayes(Survived~.,data = training_set)
+pred_naive_bayes<-predict(model_naive_bayes,testing_set)
+confusionMatrix(pred_naive_bayes,testing_set$Survived)
+```
+
+####Applying Random Forest Model
+```{r}
+library(randomForest)
+rf<-randomForest(Survived~.,data = training_set)
+plot(rf)
+pred_test_random_forest<-predict(rf,testing_set)
+str(pred_test_random_forest)
+confusionMatrix(pred_test_random_forest,testing_set$Survived)
+```
+
+**Conclusion**
+1. As we can we get the best accuracy from random forest model with very high sensitivity as compared to specificity. (Acc = 82.33%)
+2. We also get a very good accuracy of naive bayes model which has its sensitivity very close to specificity.
+3. Now it depends on us which model we want to select according to the requirement.If we want a high sensitivity model then we will go for 
+   Random forest else we will go for naive bayes model.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
