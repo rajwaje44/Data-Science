@@ -1,0 +1,2 @@
+1. Here I have scraped data of Shoes from Shopcules website.
+2. I have added 4 sections through which we can extract data of any sections we want eg. casual shoes, formal shoes. 
